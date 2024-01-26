@@ -9,10 +9,11 @@ const httpsAgent = new https.Agent({
   rejectUnauthorized: false
 });
 
-const urlToFileName = (url, defaultExtension = '') => {
+const urlToFileName = (url, defaultExtension = '.html') => {
   const { hostname, pathname } = new URL(url);
+  const sanitizedPathname = pathname.replace(/[^a-zA-Z0-9]/g, '-');
   const extension = path.extname(pathname) || defaultExtension;
-  return `${hostname}${pathname.replace(extension, '')}`.replace(/[^a-zA-Z0-9]/g, '-') + extension;
+  return `${hostname}${sanitizedPathname}`.replace(/--+/g, '-').replace(/^-|-$/g, '') + extension;
 };
 
 const urlToDirectoryName = (url) => {
