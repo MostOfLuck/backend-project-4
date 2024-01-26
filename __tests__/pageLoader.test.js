@@ -28,10 +28,10 @@ describe('pageLoader', () => {
         </body>
       </html>
     `;
-    const expectedCssPath = path.join(tempDir, 'example-com_files', 'example-com-assets-application.css');
-    const expectedJsPath = path.join(tempDir, 'example-com_files', 'example-com-scripts-app.js');
-    const expectedImagePath = path.join(tempDir, 'example-com_files', 'example-com-images-test.png');
-    const expectedHtmlPath = path.join(tempDir, 'example-com.html');
+    const expectedCssPath = path.join(tempDir, 'example-com_files', 'example.com-assets-application-css.css');
+    const expectedJsPath = path.join(tempDir, 'example-com_files', 'example.com-scripts-app-js.js');
+    const expectedImagePath = path.join(tempDir, 'example-com_files', 'example.com-images-test-png.png');    
+    const expectedHtmlPath = path.join(tempDir, 'example.com.html');
   
     nock(url)
       .get('/')
@@ -47,9 +47,9 @@ describe('pageLoader', () => {
     const fileContent = await fs.readFile(filePath, 'utf-8');
   
     expect(filePath).toBe(expectedHtmlPath);
-    expect(fileContent).toContain('example-com_files/example-com-assets-application.css');
-    expect(fileContent).toContain('example-com_files/example-com-scripts-app.js');
-    expect(fileContent).toContain('example-com_files/example-com-images-test.png');
+    expect(fileContent).toContain('example-com_files/example.com-assets-application-css.css');
+    expect(fileContent).toContain('example-com_files/example.com-scripts-app-js.js');
+    expect(fileContent).toContain('example-com_files/example.com-images-test-png.png');    
     expect(await fs.stat(expectedCssPath)).toBeTruthy();
     expect(await fs.stat(expectedJsPath)).toBeTruthy();
     expect(await fs.stat(expectedImagePath)).toBeTruthy();
