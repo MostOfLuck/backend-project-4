@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import axios from 'axios';
+import debug from 'debug';
 import cheerio from 'cheerio';
 import { promises as fs } from 'fs';
 import path from 'path';
 import https from 'https';
 
+const log = debug('page-loader');
 const httpsAgent = new https.Agent({  
   rejectUnauthorized: false
 });
@@ -22,11 +24,13 @@ const urlToDirectoryName = (url) => {
 };
 
 const downloadResource = async (url, outputPath) => {
+  log(`Downloading resource from URL: ${url}`);
   const response = await axios.get(url, { 
     responseType: 'arraybuffer',
     httpsAgent: url.startsWith('https') ? httpsAgent : undefined
   });
   await fs.writeFile(outputPath, response.data);
+  log(`Resource saved to: ${outputPath}`);
 };
 
 const isLocalResource = (resourceUrl, pageUrl) => {
@@ -34,6 +38,7 @@ const isLocalResource = (resourceUrl, pageUrl) => {
 };
 
 const downloadPage = async (url, outputDir) => {
+  log(`Downloading page from URL: ${url}`);
   const response = await axios.get(url, {
     httpsAgent: url.startsWith('https') ? httpsAgent : undefined
   });
@@ -57,6 +62,7 @@ const downloadPage = async (url, outputDir) => {
 
   const uniqueResources = [...new Set(resources)];
   const resourcePromises = uniqueResources.map(resourceUrl => {
+    log(`Downloading resource: ${resourceUrl}`);
     const resourceName = urlToFileName(resourceUrl);
     const resourcePath = path.join(resourcesDir, resourceName);
     return downloadResource(resourceUrl, resourcePath);
@@ -68,6 +74,7 @@ const downloadPage = async (url, outputDir) => {
   const filePath = path.join(outputDir, htmlFileName);
   const updatedHtml = $.html();
   await fs.writeFile(filePath, updatedHtml);
+  log(`Page downloaded and saved to: ${filePath}`);
 
   return filePath;
 };
