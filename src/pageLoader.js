@@ -28,6 +28,10 @@ const downloadResource = async (url, outputPath) => {
   await fs.writeFile(outputPath, response.data);
 };
 
+const isLocalResource = (resourceUrl, pageUrl) => {
+  return new URL(resourceUrl).origin === new URL(pageUrl).origin;
+};
+
 const downloadPage = async (url, outputDir) => {
   const response = await axios.get(url, {
     httpsAgent: url.startsWith('https') ? httpsAgent : undefined
@@ -38,18 +42,24 @@ const downloadPage = async (url, outputDir) => {
   const resourcesDir = path.join(outputDir, resourcesDirName);
   await fs.mkdir(resourcesDir, { recursive: true });
 
-  const resourcePromises = $('img').map(async (_, element) => {
-    const src = $(element).attr('src');
-    if (!src) {
-      return;
-    }
+  const resources = $('img, link[rel="stylesheet"], script[src]').map((_, element) => {
+    const tagName = element.tagName.toLowerCase();
+    const urlAttr = tagName === 'link' ? 'href' : 'src';
+    const resourceUrl = $(element).attr(urlAttr);
 
-    const resourceUrl = new URL(src, url).toString();
-    const resourceName = urlToFileName(resourceUrl, path.extname(src));
+    if (resourceUrl && isLocalResource(resourceUrl, url)) {
+      const localResourcePath = path.join(resourcesDirName, urlToFileName(resourceUrl));
+      $(element).attr(urlAttr, localResourcePath);
+      return new URL(resourceUrl, url).toString();
+    }
+  }).get().filter(Boolean);
+
+  const uniqueResources = [...new Set(resources)];
+  const resourcePromises = uniqueResources.map(resourceUrl => {
+    const resourceName = urlToFileName(resourceUrl);
     const resourcePath = path.join(resourcesDir, resourceName);
-    await downloadResource(resourceUrl, resourcePath);
-    $(element).attr('src', path.join(resourcesDirName, resourceName));
-  }).get();
+    return downloadResource(resourceUrl, resourcePath);
+  });
 
   await Promise.all(resourcePromises);
 
