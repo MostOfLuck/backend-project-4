@@ -15,18 +15,25 @@ describe('pageLoader', () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'page-loader-'));
   });
 
-  it('should download and save a page', async () => {
+  it('should download and save a page with images', async () => {
     const url = 'https://example.com';
-    const expectedContent = '<html>content</html>';
-    const expectedPath = path.join(tempDir, 'example-com.html');
+    const expectedHtml = '<html><body><img src="images/test.png"></body></html>';
+    const expectedImagePath = path.join(tempDir, 'ru-hexlet-io-courses_files', 'example-com-images-test.png');
+    const expectedHtmlPath = path.join(tempDir, 'ru-hexlet-io-courses.html');
 
-    nock(url).get('/').reply(200, expectedContent);
+    nock(url)
+      .get('/')
+      .reply(200, expectedHtml)
+      .get('/images/test.png')
+      .reply(200, 'fake-image-content');
 
     const filePath = await downloadPage(url, tempDir);
     const fileContent = await fs.readFile(filePath, 'utf-8');
+    const imageExists = await fs.stat(expectedImagePath);
 
-    expect(filePath).toBe(expectedPath);
-    expect(fileContent).toBe(expectedContent);
+    expect(filePath).toBe(expectedHtmlPath);
+    expect(fileContent).toContain('ru-hexlet-io-courses_files/example-com-images-test.png');
+    expect(imageExists).toBeTruthy();
   });
 
   it('should handle network errors', async () => {
