@@ -8,3 +8,8 @@
 How to start:
 ------------
 [![asciicast](https://asciinema.org/a/CnhyDQMlMavYDSPeM02IHfGy1.svg)](https://asciinema.org/a/CnhyDQMlMavYDSPeM02IHfGy1)
+
+
+How to download page:
+---------------------
+[![asciicast](https://asciinema.org/a/633573.svg)](https://asciinema.org/a/633573)
