@@ -15,26 +15,46 @@ describe('pageLoader', () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'page-loader-'));
   });
 
-  it('should download and save a page with images', async () => {
+  it('should download and save a page with all resources', async () => {
     const url = 'https://example.com';
-    const expectedHtml = '<html><body><img src="images/test.png"></body></html>';
-    const expectedImagePath = path.join(tempDir, 'ru-hexlet-io-courses_files', 'example-com-images-test.png');
-    const expectedHtmlPath = path.join(tempDir, 'ru-hexlet-io-courses.html');
-
+    const expectedHtml = `
+      <html>
+        <head>
+          <link rel="stylesheet" href="/assets/application.css">
+          <script src="/scripts/app.js"></script>
+        </head>
+        <body>
+          <img src="/images/test.png">
+        </body>
+      </html>
+    `;
+    const expectedCssPath = path.join(tempDir, 'example-com_files', 'example-com-assets-application.css');
+    const expectedJsPath = path.join(tempDir, 'example-com_files', 'example-com-scripts-app.js');
+    const expectedImagePath = path.join(tempDir, 'example-com_files', 'example-com-images-test.png');
+    const expectedHtmlPath = path.join(tempDir, 'example-com.html');
+  
     nock(url)
       .get('/')
       .reply(200, expectedHtml)
+      .get('/assets/application.css')
+      .reply(200, 'fake-css-content')
+      .get('/scripts/app.js')
+      .reply(200, 'fake-js-content')
       .get('/images/test.png')
       .reply(200, 'fake-image-content');
-
+  
     const filePath = await downloadPage(url, tempDir);
     const fileContent = await fs.readFile(filePath, 'utf-8');
-    const imageExists = await fs.stat(expectedImagePath);
-
+  
     expect(filePath).toBe(expectedHtmlPath);
-    expect(fileContent).toContain('ru-hexlet-io-courses_files/example-com-images-test.png');
-    expect(imageExists).toBeTruthy();
+    expect(fileContent).toContain('example-com_files/example-com-assets-application.css');
+    expect(fileContent).toContain('example-com_files/example-com-scripts-app.js');
+    expect(fileContent).toContain('example-com_files/example-com-images-test.png');
+    expect(await fs.stat(expectedCssPath)).toBeTruthy();
+    expect(await fs.stat(expectedJsPath)).toBeTruthy();
+    expect(await fs.stat(expectedImagePath)).toBeTruthy();
   });
+  
 
   it('should handle network errors', async () => {
     const url = 'https://nonexistent.com';
