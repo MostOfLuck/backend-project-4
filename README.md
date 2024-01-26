@@ -18,3 +18,7 @@ How to download page:
 How to download local page:
 ---------------------------
 [![asciicast](https://asciinema.org/a/633579.svg)](https://asciinema.org/a/633579)
+
+Debug:
+-------
+[![asciicast](https://asciinema.org/a/633641.svg)](https://asciinema.org/a/633641)
