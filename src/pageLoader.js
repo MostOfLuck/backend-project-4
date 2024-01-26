@@ -34,7 +34,12 @@ const downloadResource = async (url, outputPath) => {
 };
 
 const isLocalResource = (resourceUrl, pageUrl) => {
-  return new URL(resourceUrl).origin === new URL(pageUrl).origin;
+  try {
+    return new URL(resourceUrl, pageUrl).origin === new URL(pageUrl).origin;
+  } catch (error) {
+    log(`Invalid URL encountered: ${resourceUrl}`);
+    return false;
+  }
 };
 
 const downloadPage = async (url, outputDir) => {
@@ -51,12 +56,13 @@ const downloadPage = async (url, outputDir) => {
   const resources = $('img, link[rel="stylesheet"], script[src]').map((_, element) => {
     const tagName = element.tagName.toLowerCase();
     const urlAttr = tagName === 'link' ? 'href' : 'src';
-    const resourceUrl = $(element).attr(urlAttr);
+    let resourceUrl = $(element).attr(urlAttr);
 
     if (resourceUrl && isLocalResource(resourceUrl, url)) {
-      const localResourcePath = path.join(resourcesDirName, urlToFileName(resourceUrl));
+      const absoluteResourceUrl = new URL(resourceUrl, url).toString();
+      const localResourcePath = path.join(resourcesDirName, urlToFileName(absoluteResourceUrl));
       $(element).attr(urlAttr, localResourcePath);
-      return new URL(resourceUrl, url).toString();
+      return absoluteResourceUrl;
     }
   }).get().filter(Boolean);
 
