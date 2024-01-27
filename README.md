@@ -22,3 +22,8 @@ How to download local page:
 Debug:
 -------
 [![asciicast](https://asciinema.org/a/633641.svg)](https://asciinema.org/a/633641)
+
+
+Error processing:
+-----------------
+[![asciicast](https://asciinema.org/a/633772.svg)](https://asciinema.org/a/633772)
