@@ -15,10 +15,17 @@ describe('pageLoader', () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'page-loader-'));
   });
 
+  afterEach(() => {
+    nock.cleanAll();
+  });
+
+  afterAll(() => {
+    nock.enableNetConnect();
+  });
+
   it('should download and save a page with all resources', async () => {
     const url = 'https://example.com';
-    const expectedHtml = `
-      <html>
+    const expectedHtml = `<html>
         <head>
           <link rel="stylesheet" href="/assets/application.css">
           <script src="/scripts/app.js"></script>
@@ -26,13 +33,12 @@ describe('pageLoader', () => {
         <body>
           <img src="/images/test.png">
         </body>
-      </html>
-    `;
+      </html>`;
     const expectedCssPath = path.join(tempDir, 'example-com_files', 'example.com-assets-application-css.css');
     const expectedJsPath = path.join(tempDir, 'example-com_files', 'example.com-scripts-app-js.js');
-    const expectedImagePath = path.join(tempDir, 'example-com_files', 'example.com-images-test-png.png');    
+    const expectedImagePath = path.join(tempDir, 'example-com_files', 'example.com-images-test-png.png');
     const expectedHtmlPath = path.join(tempDir, 'example.com.html');
-  
+
     nock(url)
       .get('/')
       .reply(200, expectedHtml)
@@ -42,29 +48,32 @@ describe('pageLoader', () => {
       .reply(200, 'fake-js-content')
       .get('/images/test.png')
       .reply(200, 'fake-image-content');
-  
+
     const filePath = await downloadPage(url, tempDir);
     const fileContent = await fs.readFile(filePath, 'utf-8');
-  
+
     expect(filePath).toBe(expectedHtmlPath);
     expect(fileContent).toContain('example-com_files/example.com-assets-application-css.css');
     expect(fileContent).toContain('example-com_files/example.com-scripts-app-js.js');
-    expect(fileContent).toContain('example-com_files/example.com-images-test-png.png');    
-    expect(await fs.stat(expectedCssPath)).toBeTruthy();
-    expect(await fs.stat(expectedJsPath)).toBeTruthy();
-    expect(await fs.stat(expectedImagePath)).toBeTruthy();
+    expect(fileContent).toContain('example-com_files/example.com-images-test-png.png');
+    await expect(fs.stat(expectedCssPath)).resolves.toBeTruthy();
+    await expect(fs.stat(expectedJsPath)).resolves.toBeTruthy();
+    await expect(fs.stat(expectedImagePath)).resolves.toBeTruthy();
   });
-  
 
   it('should handle network errors', async () => {
     const url = 'https://nonexistent.com';
-
-    nock(url).get('/').replyWithError('Network error');
+    nock(url).get('/').replyWithError({ message: 'Network error', code: 'ENOTFOUND' });
 
     await expect(downloadPage(url, tempDir)).rejects.toThrow('Network error');
   });
 
-  afterAll(() => {
-    nock.enableNetConnect();
+  it('should handle non-200 HTTP status codes', async () => {
+    const url = 'https://example.com/unavailable';
+    nock('https://example.com')
+      .get('/unavailable')
+      .reply(404, 'Not Found');
+  
+    await expect(downloadPage(url, tempDir)).rejects.toThrow('Request failed with status code 404');
   });
 });
