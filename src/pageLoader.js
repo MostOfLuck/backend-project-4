@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import axios from 'axios';
-import debug from 'debug';
 import cheerio from 'cheerio';
 import { promises as fs } from 'fs';
 import path from 'path';
 import https from 'https';
+import Listr from 'listr';
+import debug from 'debug';
 
 const log = debug('page-loader');
 const httpsAgent = new https.Agent({
@@ -25,66 +26,50 @@ const urlToDirectoryName = (url) => {
 
 const downloadResource = async (url, outputPath) => {
   try {
-    log(`Downloading resource from URL: ${url}`);
+    log(`Downloading resource: ${url}`);
     const response = await axios.get(url, {
       responseType: 'arraybuffer',
       httpsAgent: url.startsWith('https') ? httpsAgent : undefined
     });
     await fs.writeFile(outputPath, response.data);
-    log(`Resource saved to: ${outputPath}`);
+    log(`Resource saved: ${outputPath}`);
   } catch (error) {
     throw new Error(`Error downloading resource ${url}: ${error.message}`);
   }
 };
 
-const isLocalResource = (resourceUrl, pageUrl) => {
-  try {
-    return new URL(resourceUrl, pageUrl).origin === new URL(pageUrl).origin;
-  } catch (error) {
-    log(`Invalid URL encountered: ${resourceUrl}`);
-    return false;
-  }
-};
-
 const downloadPage = async (url, outputDir) => {
   try {
-    log(`Downloading page from URL: ${url}`);
+    log(`Downloading page: ${url}`);
     const response = await axios.get(url, {
       httpsAgent: url.startsWith('https') ? httpsAgent : undefined
     });
     if (response.status !== 200) {
       throw new Error(`Failed to download ${url}: server responded with status code ${response.status}`);
     }
-    const $ = cheerio.load(response.data);
 
+    const $ = cheerio.load(response.data);
     const resourcesDirName = urlToDirectoryName(url);
     const resourcesDir = path.join(outputDir, resourcesDirName);
     await fs.mkdir(resourcesDir, { recursive: true });
 
     const resources = $('img, link[rel="stylesheet"], script[src]').map((_, element) => {
-      const tagName = element.tagName.toLowerCase();
-      const urlAttr = tagName === 'link' ? 'href' : 'src';
-      let resourceUrl = $(element).attr(urlAttr);
-
-      if (resourceUrl && isLocalResource(resourceUrl, url)) {
-        const absoluteResourceUrl = new URL(resourceUrl, url).toString();
-        const localResourcePath = path.join(resourcesDirName, urlToFileName(absoluteResourceUrl));
-        $(element).attr(urlAttr, localResourcePath);
-        return absoluteResourceUrl;
-      }
-    }).get().filter(Boolean);
-
-    const uniqueResources = [...new Set(resources)];
-    const resourcePromises = uniqueResources.map(resourceUrl => {
-      log(`Downloading resource: ${resourceUrl}`);
+      const src = $(element).attr('src') || $(element).attr('href');
+      const resourceUrl = new URL(src, url).toString();
       const resourceName = urlToFileName(resourceUrl);
       const resourcePath = path.join(resourcesDir, resourceName);
-      return downloadResource(resourceUrl, resourcePath);
-    });
+      $(element).attr('src', path.join(resourcesDirName, resourceName));
+      return { url: resourceUrl, path: resourcePath };
+    }).get();
 
-    await Promise.all(resourcePromises);
+    const tasks = new Listr(resources.map(({ url, path }) => ({
+      title: `Downloading ${url}`,
+      task: () => downloadResource(url, path),
+    })), { concurrent: true, exitOnError: false });
 
-    const htmlFileName = urlToFileName(url, '.html');
+    await tasks.run();
+
+    const htmlFileName = urlToFileName(url);
     const filePath = path.join(outputDir, htmlFileName);
     const updatedHtml = $.html();
     await fs.writeFile(filePath, updatedHtml);
@@ -92,7 +77,7 @@ const downloadPage = async (url, outputDir) => {
 
     return filePath;
   } catch (error) {
-    log(`Error: ${error.message}`);
+    log(error);
     throw error;
   }
 };
