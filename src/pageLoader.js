@@ -7,7 +7,7 @@ import path from 'path';
 import https from 'https';
 
 const log = debug('page-loader');
-const httpsAgent = new https.Agent({  
+const httpsAgent = new https.Agent({
   rejectUnauthorized: false
 });
 
@@ -24,13 +24,17 @@ const urlToDirectoryName = (url) => {
 };
 
 const downloadResource = async (url, outputPath) => {
-  log(`Downloading resource from URL: ${url}`);
-  const response = await axios.get(url, { 
-    responseType: 'arraybuffer',
-    httpsAgent: url.startsWith('https') ? httpsAgent : undefined
-  });
-  await fs.writeFile(outputPath, response.data);
-  log(`Resource saved to: ${outputPath}`);
+  try {
+    log(`Downloading resource from URL: ${url}`);
+    const response = await axios.get(url, {
+      responseType: 'arraybuffer',
+      httpsAgent: url.startsWith('https') ? httpsAgent : undefined
+    });
+    await fs.writeFile(outputPath, response.data);
+    log(`Resource saved to: ${outputPath}`);
+  } catch (error) {
+    throw new Error(`Error downloading resource ${url}: ${error.message}`);
+  }
 };
 
 const isLocalResource = (resourceUrl, pageUrl) => {
@@ -43,46 +47,54 @@ const isLocalResource = (resourceUrl, pageUrl) => {
 };
 
 const downloadPage = async (url, outputDir) => {
-  log(`Downloading page from URL: ${url}`);
-  const response = await axios.get(url, {
-    httpsAgent: url.startsWith('https') ? httpsAgent : undefined
-  });
-  const $ = cheerio.load(response.data);
-
-  const resourcesDirName = urlToDirectoryName(url);
-  const resourcesDir = path.join(outputDir, resourcesDirName);
-  await fs.mkdir(resourcesDir, { recursive: true });
-
-  const resources = $('img, link[rel="stylesheet"], script[src]').map((_, element) => {
-    const tagName = element.tagName.toLowerCase();
-    const urlAttr = tagName === 'link' ? 'href' : 'src';
-    let resourceUrl = $(element).attr(urlAttr);
-
-    if (resourceUrl && isLocalResource(resourceUrl, url)) {
-      const absoluteResourceUrl = new URL(resourceUrl, url).toString();
-      const localResourcePath = path.join(resourcesDirName, urlToFileName(absoluteResourceUrl));
-      $(element).attr(urlAttr, localResourcePath);
-      return absoluteResourceUrl;
+  try {
+    log(`Downloading page from URL: ${url}`);
+    const response = await axios.get(url, {
+      httpsAgent: url.startsWith('https') ? httpsAgent : undefined
+    });
+    if (response.status !== 200) {
+      throw new Error(`Failed to download ${url}: server responded with status code ${response.status}`);
     }
-  }).get().filter(Boolean);
+    const $ = cheerio.load(response.data);
 
-  const uniqueResources = [...new Set(resources)];
-  const resourcePromises = uniqueResources.map(resourceUrl => {
-    log(`Downloading resource: ${resourceUrl}`);
-    const resourceName = urlToFileName(resourceUrl);
-    const resourcePath = path.join(resourcesDir, resourceName);
-    return downloadResource(resourceUrl, resourcePath);
-  });
+    const resourcesDirName = urlToDirectoryName(url);
+    const resourcesDir = path.join(outputDir, resourcesDirName);
+    await fs.mkdir(resourcesDir, { recursive: true });
 
-  await Promise.all(resourcePromises);
+    const resources = $('img, link[rel="stylesheet"], script[src]').map((_, element) => {
+      const tagName = element.tagName.toLowerCase();
+      const urlAttr = tagName === 'link' ? 'href' : 'src';
+      let resourceUrl = $(element).attr(urlAttr);
 
-  const htmlFileName = urlToFileName(url, '.html');
-  const filePath = path.join(outputDir, htmlFileName);
-  const updatedHtml = $.html();
-  await fs.writeFile(filePath, updatedHtml);
-  log(`Page downloaded and saved to: ${filePath}`);
+      if (resourceUrl && isLocalResource(resourceUrl, url)) {
+        const absoluteResourceUrl = new URL(resourceUrl, url).toString();
+        const localResourcePath = path.join(resourcesDirName, urlToFileName(absoluteResourceUrl));
+        $(element).attr(urlAttr, localResourcePath);
+        return absoluteResourceUrl;
+      }
+    }).get().filter(Boolean);
 
-  return filePath;
+    const uniqueResources = [...new Set(resources)];
+    const resourcePromises = uniqueResources.map(resourceUrl => {
+      log(`Downloading resource: ${resourceUrl}`);
+      const resourceName = urlToFileName(resourceUrl);
+      const resourcePath = path.join(resourcesDir, resourceName);
+      return downloadResource(resourceUrl, resourcePath);
+    });
+
+    await Promise.all(resourcePromises);
+
+    const htmlFileName = urlToFileName(url, '.html');
+    const filePath = path.join(outputDir, htmlFileName);
+    const updatedHtml = $.html();
+    await fs.writeFile(filePath, updatedHtml);
+    log(`Page downloaded and saved to: ${filePath}`);
+
+    return filePath;
+  } catch (error) {
+    log(`Error: ${error.message}`);
+    throw error;
+  }
 };
 
 export default downloadPage;
